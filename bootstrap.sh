@@ -41,6 +41,14 @@ check_exec_installed() {
   which $1 >& /dev/null
   return $?
 }
+
+get_latest_release() {
+  # From: https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c
+
+  curl --silent "https://api.github.com/repos/$1/releases/latest" | # Get latest release from GitHub api
+    grep '"tag_name":' |                                            # Get tag line
+    sed -E 's/.*"([^"]+)".*/\1/'                                    # Pluck JSON value
+}
 # -----------------------------------------------
 
 
@@ -101,6 +109,13 @@ if ! check_exec_installed "atom"; then
   sudo sh -c 'echo "deb [arch=amd64] https://packagecloud.io/AtomEditor/atom/any/ any main" > /etc/apt/sources.list.d/atom.list'
 fi
 
+# Docker
+if ! check_exec_installed "docker"; then
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+  sudo add-apt-repository \
+    "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+fi
+
 # ---
 
 
@@ -159,13 +174,25 @@ else
 fi
 
 # Docker
-if check_exec_installed "openvpn"; then
+if check_exec_installed "docker"; then
   printf "\n-- Docker already installed. Skipping. --\n"
 else
   # remove old versions
-  sudo apt-get remove docker docker-engine docker.io
+  sudo apt remove docker docker-engine docker.io
 
+  printf "\n--Installing Docker--\n"
+  sudo apt install -y docker-ce
+  sudo usermod -aG docker $USER
+fi
 
+# Docker Compose
+if check_exec_installed "docker-compose"; then
+  printf "\n-- Docker Compose already installed. Skipping. --\n"
+else
+  printf "\n--Installing Docker Compose--\n"
+  version=$(get_latest_release "docker/compose")
+  sudo curl -L "https://github.com/docker/compose/releases/download/$version/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
 fi
 
 
